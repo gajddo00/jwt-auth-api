@@ -24,11 +24,11 @@ class AuthController: RouteCollection {
 
 // MARK: Private Handlers
 private extension AuthController {
-    func authorize(req: Request) async throws -> [String: String] {
+    func authorize(req: Request) async throws -> JwtDto {
         try createJWTResponse(req: req)
     }
     
-    func refreshToken(req: Request) async throws -> [String: String] {
+    func refreshToken(req: Request) async throws -> JwtDto {
         guard let bearerHeader = req.headers.first(name: "Authorization") else {
             throw Abort(.badRequest)
         }
@@ -49,7 +49,7 @@ private extension AuthController {
         return try createJWTResponse(req: req)
     }
     
-    func createJWTResponse(req: Request) throws -> [String: String] {
+    func createJWTResponse(req: Request) throws -> JwtDto {
         let payload = Payload(
             subject: "vapor",
             expiration: .init(value: Date().addingTimeInterval(accessTokenExpiration))
@@ -57,15 +57,15 @@ private extension AuthController {
         
         let accessToken = try req.jwt.sign(payload)
         let refreshToken = UUID().uuidString
-        let expirationDate = Int(Date().addingTimeInterval(accessTokenExpiration).timeIntervalSince1970)
+        let expirationDate = Date().addingTimeInterval(accessTokenExpiration).timeIntervalSince1970
         tokens[accessToken] = refreshToken
         
-        return [
-            "access_token": accessToken,
-            "token_type": "Bearer",
-            "expires_in": "\(expirationDate)",
-            "refresh_token": refreshToken
-        ]
+        return JwtDto(
+            accessToken: accessToken,
+            tokenType: "Bearer",
+            refreshToken: refreshToken,
+            expiresIn: expirationDate
+        )
     }
     
     func checkIfAuthorized(req: Request) throws -> HTTPStatus {
