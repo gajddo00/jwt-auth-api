@@ -10,7 +10,7 @@ import JWT
 import Foundation
 
 class AuthController: RouteCollection {
-    private var refreshTokens: [RefreshToken] = []
+    private let storage = TokenStorage()
     private let accessTokenExpiration: TimeInterval = 2*60
     private let refreshTokenExpiration: TimeInterval = 10*60
     
@@ -25,25 +25,25 @@ class AuthController: RouteCollection {
 // MARK: Private Handlers
 private extension AuthController {
     func authorize(req: Request) async throws -> JwtResponse {
-        try createJWTResponse(req: req)
+        try await createJWTResponse(req: req)
     }
     
     func refreshToken(req: Request) async throws -> JwtResponse {
         let body = try req.content.decode(RefreshTokenRequest.self)
         
-        guard let refreshToken = refreshTokens.first(where: { $0.refreshToken == body.refreshToken }) else {
-            throw Abort(.badRequest)
+        guard let refreshToken = await storage.get(body.refreshToken) else {
+            throw Abort(.unauthorized)
         }
         
         guard refreshToken.expiresIn > Date() else {
             throw Abort(.unauthorized)
         }
         
-        refreshTokens.removeAll(where: { $0.refreshToken == refreshToken.refreshToken })
-        return try createJWTResponse(req: req)
+        await storage.removeToken(refreshToken.refreshToken)
+        return try await createJWTResponse(req: req)
     }
     
-    func createJWTResponse(req: Request) throws -> JwtResponse {
+    func createJWTResponse(req: Request) async throws -> JwtResponse {
         let payload = Payload(
             subject: "vapor",
             expiration: .init(value: Date().addingTimeInterval(accessTokenExpiration))
@@ -54,7 +54,7 @@ private extension AuthController {
         let expirationDate = Date().addingTimeInterval(accessTokenExpiration).timeIntervalSince1970
         
         /// Save refresh token data.
-        refreshTokens.append(RefreshToken(
+        await storage.addToken(RefreshToken(
             refreshToken: refreshToken,
             expiresIn: Date().addingTimeInterval(refreshTokenExpiration)
         ))
