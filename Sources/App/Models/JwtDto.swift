@@ -7,7 +7,7 @@
 
 import Vapor
 
-struct JwtDto: Content {
+struct JwtResponse: Content {
     let accessToken: String
     let tokenType: String
     let refreshToken: String

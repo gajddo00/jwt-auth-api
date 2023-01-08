@@ -10,8 +10,8 @@ import JWT
 import Foundation
 
 class AuthController: RouteCollection {
-    private var tokens: [String: String] = [:]
-    private let accessTokenExpiration: TimeInterval = 60
+    private var refreshTokens: [String] = []
+    private let accessTokenExpiration: TimeInterval = 2*60
     private let refreshTokenExpiration: TimeInterval = 10*60
     
     func boot(routes: RoutesBuilder) throws {
@@ -24,32 +24,22 @@ class AuthController: RouteCollection {
 
 // MARK: Private Handlers
 private extension AuthController {
-    func authorize(req: Request) async throws -> JwtDto {
+    func authorize(req: Request) async throws -> JwtResponse {
         try createJWTResponse(req: req)
     }
     
-    func refreshToken(req: Request) async throws -> JwtDto {
-        guard let bearerHeader = req.headers.first(name: "Authorization") else {
-            throw Abort(.badRequest)
-        }
-        
-        let parts = bearerHeader.components(separatedBy: " ")
-        
-        guard parts.count == 2 else {
-            throw Abort(.badRequest)
-        }
-        
-        let accessToken: String = parts[1]
+    func refreshToken(req: Request) async throws -> JwtResponse {
         let body = try req.content.decode(RefreshTokenRequest.self)
         
-        if tokens[accessToken] != body.refreshToken {
+        guard let refreshToken = refreshTokens.first(where: { $0 == body.refreshToken }) else {
             throw Abort(.unauthorized)
         }
         
+        refreshTokens.removeAll(where: { $0 == refreshToken })
         return try createJWTResponse(req: req)
     }
     
-    func createJWTResponse(req: Request) throws -> JwtDto {
+    func createJWTResponse(req: Request) throws -> JwtResponse {
         let payload = Payload(
             subject: "vapor",
             expiration: .init(value: Date().addingTimeInterval(accessTokenExpiration))
@@ -58,9 +48,9 @@ private extension AuthController {
         let accessToken = try req.jwt.sign(payload)
         let refreshToken = UUID().uuidString
         let expirationDate = Date().addingTimeInterval(accessTokenExpiration).timeIntervalSince1970
-        tokens[accessToken] = refreshToken
+        refreshTokens.append(refreshToken)
         
-        return JwtDto(
+        return JwtResponse(
             accessToken: accessToken,
             tokenType: "Bearer",
             refreshToken: refreshToken,
