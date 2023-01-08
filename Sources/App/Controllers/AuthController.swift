@@ -10,7 +10,7 @@ import JWT
 import Foundation
 
 class AuthController: RouteCollection {
-    private var refreshTokens: [String] = []
+    private var refreshTokens: [RefreshToken] = []
     private let accessTokenExpiration: TimeInterval = 2*60
     private let refreshTokenExpiration: TimeInterval = 10*60
     
@@ -31,11 +31,15 @@ private extension AuthController {
     func refreshToken(req: Request) async throws -> JwtResponse {
         let body = try req.content.decode(RefreshTokenRequest.self)
         
-        guard let refreshToken = refreshTokens.first(where: { $0 == body.refreshToken }) else {
+        guard let refreshToken = refreshTokens.first(where: { $0.refreshToken == body.refreshToken }) else {
+            throw Abort(.badRequest)
+        }
+        
+        guard refreshToken.expiresIn < Date() else {
             throw Abort(.unauthorized)
         }
         
-        refreshTokens.removeAll(where: { $0 == refreshToken })
+        refreshTokens.removeAll(where: { $0.refreshToken == refreshToken.refreshToken })
         return try createJWTResponse(req: req)
     }
     
@@ -48,7 +52,12 @@ private extension AuthController {
         let accessToken = try req.jwt.sign(payload)
         let refreshToken = UUID().uuidString
         let expirationDate = Date().addingTimeInterval(accessTokenExpiration).timeIntervalSince1970
-        refreshTokens.append(refreshToken)
+        
+        /// Save refresh token data.
+        refreshTokens.append(RefreshToken(
+            refreshToken: refreshToken,
+            expiresIn: Date().addingTimeInterval(refreshTokenExpiration)
+        ))
         
         return JwtResponse(
             accessToken: accessToken,

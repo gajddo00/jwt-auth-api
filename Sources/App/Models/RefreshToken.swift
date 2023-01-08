@@ -2,11 +2,11 @@
 //  File.swift
 //  
 //
-//  Created by Dominika Gajdová on 12.12.2022.
+//  Created by Dominika Gajdová on 08.01.2023.
 //
 
-import Vapor
-
-struct RefreshTokenRequest: Content {
+struct RefreshToken {
     let refreshToken: String
+    let expiresIn: Date
 }
+
