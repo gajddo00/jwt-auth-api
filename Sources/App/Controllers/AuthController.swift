@@ -35,7 +35,7 @@ private extension AuthController {
             throw Abort(.badRequest)
         }
         
-        guard refreshToken.expiresIn < Date() else {
+        guard refreshToken.expiresIn > Date() else {
             throw Abort(.unauthorized)
         }
         
